@@ -1,0 +1,71 @@
+# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python
+# For example, here's several helpful packages to load
+
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+
+# Input data files are available in the read-only "../input/" directory
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+import os
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+
+# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using "Save & Run All" 
+# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session
+
+!pip install --quiet pytorch-lightning
+
+from matplotlib import pyplot as plt
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.utils.data as data
+from torch.utils.data import DataLoader, random_split, Dataset
+import pytorch_lightning as pl
+from typing import Dict
+import math
+from einops import repeat
+import wandb
+from tqdm import tqdm, trange
+import time
+import numpy as np
+import os
+import psutil 
+
+# Load data
+train_df = pd.read_csv('/kaggle/input/ashrae-energy-prediction/train.csv', parse_dates=['timestamp'])
+
+# Feature Engineering
+train_df['hour'] = train_df['timestamp'].dt.hour
+train_df['day_of_week'] = train_df['timestamp'].dt.dayofweek
+train_df['month'] = train_df['timestamp'].dt.month
+
+train_df.replace([np.inf, -np.inf], np.nan, inplace=True)
+train_df.fillna(train_df.mean(), inplace=True)
+
+building_metadata = pd.read_csv('/kaggle/input/ashrae-energy-prediction/building_metadata.csv')
+weather_train = pd.read_csv('/kaggle/input/ashrae-energy-prediction/weather_train.csv', parse_dates=['timestamp'])
+
+# Merge data
+train_df = train_df.merge(building_metadata, on='building_id', how='left')
+train_df = train_df.merge(weather_train, on=['site_id', 'timestamp'], how='left')
+train_df.drop(columns=['floor_count', 'precip_depth_1_hr'], inplace=True)
+
+# print(train_df.head())
+# print(train_df.tail())
+# print(f"Min timestamp: {train_df['timestamp'].min()}")
+# print(f"Max timestamp: {train_df['timestamp'].max()}")
+
+train_set = train_df[(train_df['timestamp'] >= '2016-01-01') & (train_df['timestamp'] < '2016-08-01')]
+val_set = train_df[(train_df['timestamp'] >= '2016-08-01') & (train_df['timestamp'] < '2016-10-01')]
+test_set = train_df[(train_df['timestamp'] >= '2016-10-01') & (train_df['timestamp'] <= '2016-12-31')]
+
+train_set.to_csv('/kaggle/working/train.csv', index=False)
+val_set.to_csv('/kaggle/working/val.csv', index=False)
+test_set.to_csv('/kaggle/working/test.csv', index=False)
+
+print(f"Train Set: {len(train_set)} rows")
+print(f"Validation Set: {len(val_set)} rows")
+print(f"Test Set: {len(test_set)} rows") 
